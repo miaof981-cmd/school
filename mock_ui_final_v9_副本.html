@@ -382,7 +382,8 @@
           energy: parseInt(document.getElementById('status-energy')?.textContent || '58', 10),
           affinity: parseInt(document.getElementById('status-affinity')?.textContent || '70', 10)
         },
-        eventLog: []
+        eventLog: [],
+        errorLog: []
       };
 
       function updateFundsUI() {
@@ -402,13 +403,26 @@
         if (e) e.textContent = String(clamp01to100(state.stats.energy));
         if (a) a.textContent = String(clamp01to100(state.stats.affinity));
       }
-      function applyDeltas(d){
+      function applyDeltas(d, meta){
         if (!d) return;
-        state.stats.mood = clamp01to100((state.stats.mood || 0) + (d.mood||0));
-        state.stats.study = clamp01to100((state.stats.study || 0) + (d.study||0));
-        state.stats.energy = clamp01to100((state.stats.energy || 0) + (d.energy||0));
-        state.stats.affinity = clamp01to100((state.stats.affinity || 0) + (d.affinity||0));
-        updateStatsUI();
+        try {
+          const before = { ...state.stats };
+          state.stats.mood = clamp01to100((state.stats.mood || 0) + (d.mood||0));
+          state.stats.study = clamp01to100((state.stats.study || 0) + (d.study||0));
+          state.stats.energy = clamp01to100((state.stats.energy || 0) + (d.energy||0));
+          state.stats.affinity = clamp01to100((state.stats.affinity || 0) + (d.affinity||0));
+          updateStatsUI();
+          state.eventLog.push({
+            type: 'delta',
+            ts: Date.now(),
+            label: meta && meta.label || '属性变更',
+            deltas: { ...d },
+            before, after: { ...state.stats }
+          });
+        } catch (err) {
+          state.errorLog.push({ ts: Date.now(), message: String(err && err.message || err) });
+          state.eventLog.push({ type: 'error', ts: Date.now(), label: '错误', message: String(err && err.message || err) });
+        }
       }
 
       // ---------- Chat helpers ----------
@@ -471,7 +485,7 @@
             if (target === 'group') {
               appendMsg(groupMsgs, 'me', opt.label);
               if (opt.deltas) appendSystem(groupMsgs, '影响：' + JSON.stringify(opt.deltas));
-              applyDeltas(opt.deltas);
+              applyDeltas(opt.deltas, { label: '群聊发言影响' });
             } else {
               appendMsg(childMsgs, 'me', opt.label);
               appendSystem(childMsgs, '建议已记录');
@@ -480,7 +494,7 @@
                 appendMsg(childMsgs, 'child', accept ? (opt.childReplyAccept||'好，我会试试～') : (opt.childReplyReject||'我先按自己的节奏来，晚点再看哈～'));
                 if (accept) {
                   if (opt.deltas) appendSystem(childMsgs, '已生效：' + JSON.stringify(opt.deltas));
-                  applyDeltas(opt.deltas);
+                  applyDeltas(opt.deltas, { label: '建议被采纳' });
                 }
               }, 1500 + Math.random()*1000);
             }
@@ -566,23 +580,23 @@
             // 属性变化与提示
             if (type === 'campus') {
               if (state.campusCard < 30) {
-                applyDeltas({ mood: -2, energy: -3 });
+                applyDeltas({ mood: -2, energy: -3 }, { label: '校园卡余额<30' });
                 delayedChildReply('最近没钱吃饭了，好饿…', 1800);
               } else if (state.campusCard <= 100) {
                 delayedChildReply('今天还行，伙食够用。', 1800);
               } else { // > 100
-                applyDeltas({ mood: +2, energy: +1 });
+                applyDeltas({ mood: +2, energy: +1 }, { label: '校园卡余额>100' });
                 delayedChildReply('今天食堂随便吃，好爽！', 1800);
               }
             } else { // phone
               if (state.phoneCard <= 0) {
-                applyDeltas({ affinity: -5, mood: -3 });
+                applyDeltas({ affinity: -5, mood: -3 }, { label: '电话卡欠费≤0' });
                 appendSystem(childMsgs, '电话欠费，暂时无法联系。');
               } else if (state.phoneCard <= 3) { // 1~3
-                applyDeltas({ mood: -1 });
+                applyDeltas({ mood: -1 }, { label: '电话卡余额1~3' });
                 delayedChildReply('我怕快打不通你了…', 1800);
               } else if (state.phoneCard >= 50) {
-                applyDeltas({ affinity: +2 });
+                applyDeltas({ affinity: +2 }, { label: '电话卡余额≥50' });
                 delayedChildReply('随时都能给你打电话呢～', 1800);
               } else if (state.phoneCard >= 10) {
                 delayedChildReply('放心，我能随时联系你。', 1800);
@@ -593,6 +607,98 @@
           });
         });
       });
+
+      // ---------- Debug Panel ----------
+      const debugPanel = document.createElement('div');
+      debugPanel.style.position = 'fixed';
+      debugPanel.style.left = '50%';
+      debugPanel.style.top = '50%';
+      debugPanel.style.transform = 'translate(-50%, -50%)';
+      debugPanel.style.width = '300px';
+      debugPanel.style.maxHeight = '60vh';
+      debugPanel.style.overflow = 'auto';
+      debugPanel.style.background = '#fff';
+      debugPanel.style.border = '1px solid #ddd';
+      debugPanel.style.borderRadius = '8px';
+      debugPanel.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+      debugPanel.style.padding = '12px';
+      debugPanel.style.fontSize = '12px';
+      debugPanel.style.zIndex = '9999';
+      debugPanel.style.display = 'none';
+
+      function formatTime(ts){
+        const d = new Date(ts);
+        const hh = String(d.getHours()).padStart(2,'0');
+        const mm = String(d.getMinutes()).padStart(2,'0');
+        return `${hh}:${mm}`;
+      }
+
+      function renderDebug(){
+        const stats = state.stats;
+        const recent = state.eventLog.slice(-10).reverse();
+        const errors = state.errorLog.slice(-5).reverse();
+        const lines = [];
+        lines.push(`<div style="font-weight:600;margin-bottom:6px;">调试面板</div>`);
+        lines.push(`<div>心情:${stats.mood} 学习力:${stats.study} 精力:${stats.energy} 亲密度:${stats.affinity}</div>`);
+        lines.push('<hr />');
+        lines.push('<div style="font-weight:600;">最近事件</div>');
+        if (recent.length === 0) {
+          lines.push('<div>（无）</div>');
+        } else {
+          recent.forEach(function(ev){
+            if (ev.type === 'delta') {
+              const d = ev.deltas || {};
+              const parts = [];
+              if (d.mood) parts.push(`心情${d.mood>0?'+':''}${d.mood}`);
+              if (d.study) parts.push(`学习力${d.study>0?'+':''}${d.study}`);
+              if (d.energy) parts.push(`精力${d.energy>0?'+':''}${d.energy}`);
+              if (d.affinity) parts.push(`亲密度${d.affinity>0?'+':''}${d.affinity}`);
+              lines.push(`<div>[${formatTime(ev.ts)}] ${ev.label||'属性变更'} → ${parts.join(' ')||'—'}</div>`);
+            } else if (ev.type === 'recharge_campus') {
+              lines.push(`<div>[${formatTime(ev.ts)}] 校园卡充值${ev.amount} → 余额:${ev.balances && ev.balances.campus}</div>`);
+            } else if (ev.type === 'recharge_phone') {
+              lines.push(`<div>[${formatTime(ev.ts)}] 电话卡充值${ev.amount} → 余额:${ev.balances && ev.balances.phone}</div>`);
+            } else if (ev.type === 'error') {
+              lines.push(`<div style="color:#c00;">[${formatTime(ev.ts)}] 错误 → ${ev.message||'未知'}</div>`);
+            }
+          });
+        }
+        lines.push('<hr />');
+        lines.push('<div style="font-weight:600;">最近错误</div>');
+        if (errors.length === 0) {
+          lines.push('<div>（无）</div>');
+        } else {
+          errors.forEach(function(er){
+            lines.push(`<div style="color:#c00;">[${formatTime(er.ts)}] ${er.message}</div>`);
+          });
+        }
+        lines.push('<div style="text-align:right;margin-top:8px;"><button id="dbg-close" style="padding:4px 8px;">关闭</button></div>');
+        debugPanel.innerHTML = lines.join('');
+        document.body.appendChild(debugPanel);
+        const btn = document.getElementById('dbg-close');
+        if (btn) btn.addEventListener('click', function(){ debugPanel.style.display = 'none'; });
+      }
+
+      let avatarTapCount = 0;
+      let lastTapTs = 0;
+      const avatarEl = document.querySelector('#status .status-top .avatar');
+      if (avatarEl) {
+        avatarEl.addEventListener('click', function(){
+          const now = Date.now();
+          if (now - lastTapTs > 1200) { avatarTapCount = 0; }
+          lastTapTs = now;
+          avatarTapCount += 1;
+          if (avatarTapCount >= 5) {
+            avatarTapCount = 0;
+            if (debugPanel.style.display === 'none') {
+              renderDebug();
+              debugPanel.style.display = 'block';
+            } else {
+              debugPanel.style.display = 'none';
+            }
+          }
+        });
+      }
 
       // ---------- Parcel chips ----------
       document.querySelectorAll('#operate .chip').forEach(function(chip) {

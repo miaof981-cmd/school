@@ -550,7 +550,10 @@
             state.parentFund -= amt;
             if (type === 'campus') state.campusCard += amt; else state.phoneCard += amt;
             updateFundsUI();
-            appendSystem(childMsgs, '你已为' + (type==='campus'?'校园卡':'电话卡') + '充值 ' + amt + ' 元');
+            const sysMsg = type === 'campus'
+              ? ('已为校园卡充值 ' + amt + ' 元')
+              : ('已为电话卡充值 ' + amt + ' 元');
+            appendSystem(childMsgs, sysMsg);
             delayedChildReply('谢谢！现在已经能正常用了～', 1800);
           });
         });

@@ -381,7 +381,8 @@
           study: parseInt(document.getElementById('status-study')?.textContent || '65', 10),
           energy: parseInt(document.getElementById('status-energy')?.textContent || '58', 10),
           affinity: parseInt(document.getElementById('status-affinity')?.textContent || '70', 10)
-        }
+        },
+        eventLog: []
       };
 
       function updateFundsUI() {
@@ -554,7 +555,41 @@
               ? ('已为校园卡充值 ' + amt + ' 元')
               : ('已为电话卡充值 ' + amt + ' 元');
             appendSystem(childMsgs, sysMsg);
-            delayedChildReply('谢谢！现在已经能正常用了～', 1800);
+            // 记录事件
+            state.eventLog.push({
+              type: type === 'campus' ? 'recharge_campus' : 'recharge_phone',
+              amount: amt,
+              ts: Date.now(),
+              balances: { parent: state.parentFund, campus: state.campusCard, phone: state.phoneCard }
+            });
+
+            // 属性变化与提示
+            if (type === 'campus') {
+              if (state.campusCard < 30) {
+                applyDeltas({ mood: -2, energy: -3 });
+                delayedChildReply('最近没钱吃饭了，好饿…', 1800);
+              } else if (state.campusCard <= 100) {
+                delayedChildReply('今天还行，伙食够用。', 1800);
+              } else { // > 100
+                applyDeltas({ mood: +2, energy: +1 });
+                delayedChildReply('今天食堂随便吃，好爽！', 1800);
+              }
+            } else { // phone
+              if (state.phoneCard <= 0) {
+                applyDeltas({ affinity: -5, mood: -3 });
+                appendSystem(childMsgs, '电话欠费，暂时无法联系。');
+              } else if (state.phoneCard <= 3) { // 1~3
+                applyDeltas({ mood: -1 });
+                delayedChildReply('我怕快打不通你了…', 1800);
+              } else if (state.phoneCard >= 50) {
+                applyDeltas({ affinity: +2 });
+                delayedChildReply('随时都能给你打电话呢～', 1800);
+              } else if (state.phoneCard >= 10) {
+                delayedChildReply('放心，我能随时联系你。', 1800);
+              } else { // 4~9, 未列明，按中性
+                delayedChildReply('我这边暂时还可以联系～', 1800);
+              }
+            }
           });
         });
       });

@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>高中家校生活模拟器 · UI展示 v4</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* 基础重置 */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f2f2f2;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    /* 手机外框 */
+    .phone {
+      position: relative;
+      width: 370px;
+      height: 620px;
+      border: 8px solid #000;
+      border-radius: 30px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    /* 状态栏 */
+    .status-bar {
+      height: 24px;
+      background: #f9f9f9;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 12px;
+      color: #444;
+    }
+    .status-bar .time { flex: 1; font-weight: 600; }
+    .status-bar .icons { display: flex; gap: 6px; font-size: 12px; }
+    /* 顶部标题栏 */
+    .top-bar {
+      height: 44px;
+      background: #fff;
+      border-bottom: 1px solid #e5e5e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    /* 页面容器 */
+    .page-container {
+      position: absolute;
+      top: 24px; /* 状态栏高度 */
+      left: 0;
+      right: 0;
+      bottom: 60px; /* 为导航栏预留高度 */
+      overflow-y: auto;
+      background: #f5f5f7;
+    }
+    /* 页面基础样式：激活时为flex列布局，撑满可视高度 */
+    .page { display: none; }
+    .page.active { display: flex; flex-direction: column; height: 100%; }
+    /* 列表页样式 */
+    .conversation-list { list-style: none; }
+    .conversation-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e5e5;
+      cursor: pointer;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      margin-right: 12px;
+    }
+    .avatar.teacher { background: #00c853; }
+    .avatar.child { background: #673ab7; }
+    .avatar.me { background: #388e3c; }
+    .avatar.parent { background: #27ae60; }
+    .item-main { flex-grow: 1; }
+    .item-title { font-size: 16px; font-weight: 500; color: #111; margin-bottom: 4px; }
+    .item-snippet { font-size: 14px; color: #666; }
+    .item-time { font-size: 12px; color: #999; white-space: nowrap; margin-left: 8px; }
+    /* 聊天通用样式 */
+    .chat-container { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+      background: #f4f5f7;
+    }
+    .msg-row {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .msg-row.me { justify-content: flex-end; }
+    .msg-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    /* 消息内容 */
+    .msg-content {
+      max-width: 70%;
+      padding: 8px 10px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    /* 分角色配色 */
+    .msg.teacher .msg-avatar { background: #00c853; margin-right: 6px; }
+    .msg.parent .msg-avatar { background: #27ae60; margin-right: 6px; }
+    .msg.child .msg-avatar { background: #673ab7; margin-right: 6px; }
+    .msg.me .msg-avatar { background: #388e3c; margin-left: 6px; }
+    .msg.teacher .msg-content {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      color: #111;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .msg.parent .msg-content {
+      background: #fbfbfb;
+      border: 1px solid #e0e0e0;
+      color: #111;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .msg.child .msg-content {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      color: #111;
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .msg.me .msg-content {
+      background: #dcf8c6;
+      border: 1px solid #cbeaba;
+      color: #111;
+      margin-left: auto;
+      margin-right: 0;
+    }
+    /* 建议区：默认隐藏；输入栏默认显示并贴底 */
+    .suggestions { display: none; }
+    .inputbar { display: flex !important; }
+    /* 当处于输入模式时显示建议区（并保持输入栏可见） */
+    .chat-container.typing .suggestions { display: flex; }
+    /* 建议区样式 */
+    .suggestions { flex-wrap: wrap; gap: 8px; padding: 12px 8px; background: #fff; border-top: 1px solid #e5e5e5; }
+    .suggestions .option {
+      display: inline-block;
+      padding: 6px 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #111;
+      cursor: default;
+    }
+
+    /* 建议区的标签样式 */
+    .suggestion-label {
+      width: 100%;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .inputbar { align-items: center; background: #fff; border-top: 1px solid #e5e5e5; padding: 6px 8px; gap: 8px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+    .inputbar input { flex: 1; height: 36px; border: 1px solid #ddd; border-radius: 18px; padding: 0 12px; font-size: 14px; outline: none; background: #f9f9f9; min-width: 0; }
+    .inputbar .send-btn { margin-left: 0; height: 36px; padding: 0 14px; background: #17c268; color: #fff; border: none; border-radius: 18px; font-size: 14px; cursor: pointer; flex-shrink: 0; }
+    /* 操作页面 */
+    .cards { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .chip {
+      background: #f0f0f0;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .amount-buttons { display: flex; gap: 8px; margin-bottom: 8px; }
+    .amount-btn {
+      background: #e8f0fe;
+      border: 1px solid #c6dcfb;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 14px;
+      color: #1967d2;
+      cursor: pointer;
+    }
+    .card-desc { font-size: 14px; color: #777; }
+    /* 资金概况布局 */
+    .funds-grid {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .fund-item {
+      flex: 1;
+      background: #f7f9fc;
+      border: 1px solid #e1eaf8;
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+    }
+    .fund-item .label { font-size: 12px; color: #666; }
+    .fund-item .value { font-size: 18px; font-weight: 600; color: #333; }
+    /* 状态页面 */
+    .status-top {
+      display: flex;
+      align-items: center;
+      margin: 16px;
+    }
+    .status-top .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 20px;
+      background: #673ab7;
+    }
+    .status-top .info { margin-left: 12px; flex: 1; }
+    .status-top .info .name { font-size: 18px; font-weight: 600; margin-bottom: 2px; }
+    .status-top .info .mbti { font-size: 14px; color: #888; }
+    .status-grid {
+      margin: 0 16px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .status-item {
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .status-item .label { font-size: 12px; color: #666; }
+    .status-item .value { font-size: 18px; font-weight: 600; color: #333; }
+    .personality-grid {
+      margin: 0 16px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .pers-item {
+      background: #fff;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .pers-item .name { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .pers-item .score { font-size: 16px; font-weight: 600; color: #333; }
+    .state-info { margin: 0 16px 12px 16px; font-size: 14px; color: #555; }
+    .progress-bar {
+      margin: 0 16px 16px 16px;
+      position: relative;
+      height: 8px;
+      background: #eee;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress { height: 100%; width: 40%; background: #007aff; }
+    /* 底部导航栏 */
+    .tabbar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: #fff;
+      display: flex;
+      border-top: 1px solid #e5e5e5;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding-top: 6px;
+      font-size: 11px;
+      color: #888;
+    }
+    .tab svg {
+      width: 22px;
+      height: 22px;
+      margin-bottom: 2px;
+      fill: currentColor;
+    }
+    .tab.active { color: #007aff; }
+    .tab a {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      width: 100%;
+      text-decoration: none;
+      color: inherit;
+    }
+  </style>
+  <script>
+    // 页面切换
+    function showPage(id) {
+      document.querySelectorAll('.page').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      document.getElementById(id).classList.add('active');
+      document.querySelectorAll('.tab').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      if (id === 'list') {
+        document.getElementById('tab-msg').classList.add('active');
+      } else if (id === 'operate') {
+        document.getElementById('tab-op').classList.add('active');
+      } else if (id === 'status') {
+        document.getElementById('tab-status').classList.add('active');
+      }
+    }
+    window.addEventListener('hashchange', function() {
+      const page = location.hash.replace('#', '') || 'list';
+      showPage(page);
+    });
+    window.addEventListener('DOMContentLoaded', function() {
+      const page = location.hash.replace('#', '') || 'list';
+      showPage(page);
+      // 发送按钮弹窗演示
+      document.querySelectorAll('.send-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          alert('演示：发送消息按钮被点击');
+        });
+      });
+      // 充值按钮演示
+      document.querySelectorAll('.amount-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          alert('演示：充值 ' + btn.textContent + ' 元');
+        });
+      });
+      // 点击聊天容器切换候选区（仅控制 suggestions，输入栏始终在）
+      document.querySelectorAll('.chat-container').forEach(function(container) {
+        container.addEventListener('click', function() {
+          container.classList.toggle('typing');
+        });
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="phone">
+    <div class="status-bar">
+      <span class="time">9:41</span>
+      <div class="icons"><span>📶</span><span>🔋100%</span></div>
+    </div>
+    <div class="page-container">
+      <!-- 消息列表页 -->
+      <div class="page" id="list">
+        <div class="top-bar">消息</div>
+        <ul class="conversation-list">
+          <li class="conversation-item" onclick="location.hash='group'">
+            <div class="avatar teacher">群</div>
+            <div class="item-main">
+              <div class="item-title">家长群（高-3班）</div>
+              <div class="item-snippet">老师: 周五晚测语数英...家长会下周二晚</div>
+            </div>
+            <div class="item-time">14:05</div>
+          </li>
+          <li class="conversation-item" onclick="location.hash='child'">
+            <div class="avatar child">子</div>
+            <div class="item-main">
+              <div class="item-title">小明（孩子）</div>
+              <div class="item-snippet">孩子: 体育被表扬啦～晚自习后统一消息。</div>
+            </div>
+            <div class="item-time">13:48</div>
+          </li>
+        </ul>
+      </div>
+      <!-- 家长群聊天页 -->
+      <div class="page" id="group">
+        <div class="top-bar">家长群</div>
+        <div class="chat-container">
+          <div class="chat-messages">
+            <div class="msg-row msg teacher">
+              <div class="msg-avatar">群</div>
+              <div class="msg-content">各位家长好: 本周周测复习范围建议复查，晚自习时间不变；周三晚18:30, 家长开家长会。辛苦大家！</div>
+            </div>
+            <div class="msg-row msg parent">
+              <div class="msg-avatar">家</div>
+              <div class="msg-content">收到, 谢谢老师</div>
+            </div>
+            <div class="msg-row msg parent">
+              <div class="msg-avatar">家</div>
+              <div class="msg-content">理解并支持孩子节奏，我们一起会安抚。</div>
+            </div>
+            <div class="msg-row msg me">
+              <div class="msg-content">我们报了冲刺班，听说很不错～</div>
+              <div class="msg-avatar">我</div>
+            </div>
+          </div>
+          <!-- 建议区，默认隐藏，点击聊天区时出现 -->
+          <div class="suggestions">
+            <div class="suggestion-label">选项</div>
+            <div class="option">理解并支持孩子节奏</div>
+            <div class="option">对比一下家长会时间</div>
+            <div class="option">我们报了冲刺班</div>
+          </div>
+          <div class="inputbar">
+            <input type="text" placeholder="输入群聊占位（无功能）" />
+            <button class="send-btn">发送</button>
+          </div>
+        </div>
+      </div>
+      <!-- 孩子聊天页 -->
+      <div class="page" id="child">
+        <div class="top-bar">小明</div>
+        <div class="chat-container">
+          <div class="chat-messages">
+            <div class="msg-row msg child">
+              <div class="msg-avatar">子</div>
+              <div class="msg-content">妈，我刚下课～今天体育跑步被表扬了！</div>
+            </div>
+            <div class="msg-row msg me">
+              <div class="msg-content">太棒了！继续努力，晚上记得早点休息。</div>
+              <div class="msg-avatar">我</div>
+            </div>
+            <div class="msg-row msg child">
+              <div class="msg-avatar">子</div>
+              <div class="msg-content">嗯嗯，我会的～</div>
+            </div>
+          </div>
+          <!-- 私聊建议区，示例用途 -->
+          <div class="suggestions">
+            <div class="suggestion-label">选项</div>
+            <div class="option">吃点水果补充能量</div>
+            <div class="option">晚上记得早点睡</div>
+            <div class="option">加油，继续保持</div>
+          </div>
+          <div class="inputbar">
+            <input type="text" placeholder="输入私聊占位（无功能）" />
+            <button class="send-btn">发送</button>
+          </div>
+        </div>
+      </div>
+      <!-- 操作页面 -->
+      <div class="page" id="operate">
+        <div class="top-bar">操作</div>
+        <div class="cards">
+          <div class="card">
+            <div class="card-title">资金概况</div>
+            <div class="funds-grid">
+              <div class="fund-item"><div class="label">可支配</div><div class="value">200</div></div>
+              <div class="fund-item"><div class="label">校园卡</div><div class="value">10</div></div>
+              <div class="fund-item"><div class="label">电话卡</div><div class="value">0</div></div>
+            </div>
+            <div class="card-desc">模式占位。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">寄东西</div>
+            <div class="chip-container">
+              <div class="chip">泡面 ×5</div>
+              <div class="chip">衣物</div>
+              <div class="chip">书籍</div>
+            </div>
+            <div class="card-desc">生活用品，模式占位。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">充值 · 校园卡</div>
+            <div class="amount-buttons">
+              <div class="amount-btn">+20</div>
+              <div class="amount-btn">+50</div>
+              <div class="amount-btn">+100</div>
+            </div>
+            <div class="card-desc">模式占位。</div>
+          </div>
+          <div class="card">
+            <div class="card-title">充值 · 电话卡</div>
+            <div class="amount-buttons">
+              <div class="amount-btn">+10</div>
+              <div class="amount-btn">+30</div>
+              <div class="amount-btn">+50</div>
+            </div>
+            <div class="card-desc">模式占位。</div>
+          </div>
+        </div>
+      </div>
+      <!-- 状态页面 -->
+      <div class="page" id="status">
+        <div class="top-bar">状态</div>
+        <div class="status-top">
+          <div class="avatar">子</div>
+          <div class="info">
+            <div class="name">小明</div>
+            <div class="mbti">ENFP | 班级: 高三一班</div>
+          </div>
+        </div>
+        <div class="status-grid">
+          <div class="status-item"><div class="label">心情</div><div class="value">72</div></div>
+          <div class="status-item"><div class="label">学习力</div><div class="value">65</div></div>
+          <div class="status-item"><div class="label">精力</div><div class="value">58</div></div>
+          <div class="status-item"><div class="label">亲密度</div><div class="value">70</div></div>
+        </div>
+        <div class="personality-grid">
+          <div class="pers-item"><div class="name">好学/厌学</div><div class="score">75</div></div>
+          <div class="pers-item"><div class="name">勤奋/懒惰</div><div class="score">60</div></div>
+          <div class="pers-item"><div class="name">社牛/社恐</div><div class="score">55</div></div>
+          <div class="pers-item"><div class="name">独立/依赖</div><div class="score">68</div></div>
+          <div class="pers-item"><div class="name">正义/邪恶</div><div class="score">82</div></div>
+          <div class="pers-item"><div class="name">信任/叛逆</div><div class="score">45</div></div>
+        </div>
+        <div class="state-info">当前时间段: 晚自习</div>
+        <div class="state-info">游戏进度: 备战期中考试</div>
+        <div class="progress-bar"><div class="progress"></div></div>
+      </div>
+    </div>
+    <!-- 底部导航栏 -->
+    <div class="tabbar">
+      <div class="tab" id="tab-msg"><a href="#list">
+        <svg viewBox="0 0 24 24">
+          <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2Z"></path>
+        </svg>
+        <span>消息</span>
+      </a></div>
+      <div class="tab" id="tab-op"><a href="#operate">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 5.5C7.31 5.5 3.5 9.31 3.5 14C3.5 18.69 7.31 22.5 12 22.5C16.69 22.5 20.5 18.69 20.5 14C20.5 9.31 16.69 5.5 12 5.5ZM12 20.5C8.41 20.5 5.5 17.59 5.5 14C5.5 10.41 8.41 7.5 12 7.5C15.59 7.5 18.5 10.41 18.5 14C18.5 17.59 15.59 20.5 12 20.5ZM11 10.5V13.5H8V14.5H11V17.5H12V14.5H15V13.5H12V10.5H11Z"></path>
+        </svg>
+        <span>操作</span>
+      </a></div>
+      <div class="tab" id="tab-status"><a href="#status">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 12C14.76 12 17 9.76 17 7C17 4.24 14.76 2 12 2C9.24 2 7 4.24 7 7C7 9.76 9.24 12 12 12ZM12 14C8.13 14 2 15.79 2 19.5V22H22V19.5C22 15.79 15.87 14 12 14Z"></path>
+        </svg>
+        <span>状态</span>
+      </a></div>
+    </div>
+  </div>
+</body>
+</html>

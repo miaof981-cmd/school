@@ -159,6 +159,14 @@
       margin-left: auto;
       margin-right: 0;
     }
+    /* 系统消息样式 */
+    .system-msg {
+      text-align: center;
+      color: #999;
+      font-size: 12px;
+      margin: 6px 0;
+      padding: 0 8px;
+    }
     /* 建议区：默认隐藏；输入栏默认显示并贴底 */
     .suggestions { display: none; }
     .inputbar { display: flex !important; }
@@ -358,18 +366,128 @@
     window.addEventListener('DOMContentLoaded', function() {
       const page = location.hash.replace('#', '') || 'list';
       showPage(page);
-      // 发送按钮弹窗演示
+
+      // ---------- In-memory state ----------
+      const state = {
+        parentFund: parseInt(document.getElementById('fund-parent').textContent, 10) || 0,
+        campusCard: parseInt(document.getElementById('fund-campus').textContent, 10) || 0,
+        phoneCard: parseInt(document.getElementById('fund-phone').textContent, 10) || 0,
+        trust: 50,
+        nagLevel: 0
+      };
+
+      function updateFundsUI() {
+        document.getElementById('fund-parent').textContent = String(state.parentFund);
+        document.getElementById('fund-campus').textContent = String(state.campusCard);
+        document.getElementById('fund-phone').textContent = String(state.phoneCard);
+      }
+
+      // ---------- Chat helpers ----------
+      const groupMsgs = document.querySelector('#group .chat-messages');
+      const childMsgs = document.querySelector('#child .chat-messages');
+
+      function appendSystem(targetEl, text) {
+        const div = document.createElement('div');
+        div.className = 'system-msg';
+        div.textContent = text;
+        targetEl.appendChild(div);
+        targetEl.scrollTop = targetEl.scrollHeight;
+      }
+
+      function createMsgRow(role, text) {
+        const row = document.createElement('div');
+        row.className = 'msg-row msg ' + role;
+        const avatar = document.createElement('div');
+        avatar.className = 'msg-avatar';
+        avatar.textContent = role === 'me' ? '我' : (role === 'child' ? '子' : (role === 'teacher' ? '群' : '家'));
+        const content = document.createElement('div');
+        content.className = 'msg-content';
+        content.textContent = text;
+        if (role === 'me') {
+          row.appendChild(content);
+          row.appendChild(avatar);
+        } else {
+          row.appendChild(avatar);
+          row.appendChild(content);
+        }
+        return row;
+      }
+
+      function appendMsg(targetEl, role, text) {
+        const row = createMsgRow(role, text);
+        targetEl.appendChild(row);
+        targetEl.scrollTop = targetEl.scrollHeight;
+      }
+
+      function delayedChildReply(text, delayMs) {
+        setTimeout(function() {
+          appendMsg(childMsgs, 'child', text);
+        }, delayMs);
+      }
+
+      // ---------- Suggestions (group & child) ----------
+      document.querySelectorAll('#group .suggestions .option').forEach(function(opt) {
+        opt.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const text = opt.textContent.trim();
+          appendMsg(groupMsgs, 'me', text);
+        });
+      });
+
+      document.querySelectorAll('#child .suggestions .option').forEach(function(opt) {
+        opt.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const text = opt.textContent.trim();
+          appendMsg(childMsgs, 'me', text);
+          appendSystem(childMsgs, '建议已记录');
+          // 简化接受判定
+          const accept = (0.4 * (state.trust/100) + Math.random()*0.6) > 0.5;
+          delayedChildReply(accept ? '好，我会试试～' : '我先按自己的节奏来，晚点再看哈～', 1500 + Math.random()*1000);
+        });
+      });
+
+      // ---------- Amount buttons (campus/phone) ----------
+      document.querySelectorAll('#operate .card').forEach(function(card) {
+        const titleEl = card.querySelector('.card-title');
+        if (!titleEl) return;
+        const title = titleEl.textContent;
+        const type = title.includes('校园卡') ? 'campus' : (title.includes('电话卡') ? 'phone' : null);
+        if (!type) return;
+        card.querySelectorAll('.amount-btn').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const amt = parseInt(btn.textContent.replace('+','').trim(), 10) || 0;
+            if (amt <= 0) return;
+            if (state.parentFund < amt) {
+              appendSystem(childMsgs, '可支配资金不足，充值失败');
+              return;
+            }
+            state.parentFund -= amt;
+            if (type === 'campus') state.campusCard += amt; else state.phoneCard += amt;
+            updateFundsUI();
+            appendSystem(childMsgs, '你已为' + (type==='campus'?'校园卡':'电话卡') + '充值 ' + amt + ' 元');
+            delayedChildReply('谢谢！现在已经能正常用了～', 1800);
+          });
+        });
+      });
+
+      // ---------- Parcel chips ----------
+      document.querySelectorAll('#operate .chip').forEach(function(chip) {
+        chip.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const item = chip.textContent.trim();
+          appendSystem(childMsgs, '已寄送【' + item + '】，预计2天后到达');
+          delayedChildReply('收到了～到手我再和同学分着吃/用～', 2200);
+        });
+      });
+
+      // ---------- Send buttons disabled (demo only) ----------
       document.querySelectorAll('.send-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          alert('演示：发送消息按钮被点击');
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
         });
       });
-      // 充值按钮演示
-      document.querySelectorAll('.amount-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-          alert('演示：充值 ' + btn.textContent + ' 元');
-        });
-      });
+
       // 点击聊天容器切换候选区（仅控制 suggestions，输入栏始终在）
       document.querySelectorAll('.chat-container').forEach(function(container) {
         container.addEventListener('click', function() {
@@ -481,9 +599,9 @@
           <div class="card">
             <div class="card-title">资金概况</div>
             <div class="funds-grid">
-              <div class="fund-item"><div class="label">可支配</div><div class="value">200</div></div>
-              <div class="fund-item"><div class="label">校园卡</div><div class="value">10</div></div>
-              <div class="fund-item"><div class="label">电话卡</div><div class="value">0</div></div>
+              <div class="fund-item"><div class="label">可支配</div><div class="value" id="fund-parent">200</div></div>
+              <div class="fund-item"><div class="label">校园卡</div><div class="value" id="fund-campus">10</div></div>
+              <div class="fund-item"><div class="label">电话卡</div><div class="value" id="fund-phone">0</div></div>
             </div>
             <div class="card-desc">模式占位。</div>
           </div>
